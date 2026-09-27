@@ -1,0 +1,71 @@
+name: Daily Practice Bot
+
+on:
+  schedule:
+    # 13:00 UTC = 8:00 AM America/Chicago (7:00 AM during standard time).
+    # Adjust to taste — cron is always evaluated in UTC.
+    - cron: "0 13 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (write files but do not commit/push)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write   # the bot needs to push commits with the built-in token
+
+concurrency:
+  group: daily-practice-bot
+  cancel-in-progress: false
+
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip + HF model downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cache/huggingface
+          key: ${{ runner.os }}-practice-bot-${{ hashFiles('requirements-actions.txt') }}
+
+      - name: Install dependencies
+        run: pip install -r requirements-actions.txt
+
+      - name: Configure git identity
+        run: |
+          git config user.name "Daily Practice Bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Run the agent
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MODEL_NAME: "claude-sonnet-4-5"
+          PRACTICE_REPO_PATH: "."
+          PRACTICE_REPO_BRANCH: ${{ github.ref_name }}
+          GIT_AUTHOR_NAME: "Daily Practice Bot"
+          GIT_AUTHOR_EMAIL: "41898282+github-actions[bot]@users.noreply.github.com"
+          CHROMA_PATH: "./.bot-state/chroma"
+          DB_PATH: "./.bot-state/history.db"
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+          USE_PULL_REQUEST: "false"
+          MAX_DIFF_LINES: "400"
+        run: python -m app.agent
+
+      - name: Show what happened
+        if: always()
+        run: |
+          echo "Last commit on this branch:"
+          git log -1 --stat || true

@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+
+# Local-mode state (only relevant if you run this outside GitHub Actions —
+# see README). In Actions mode, .bot-state/ is intentionally NOT ignored:
+# it has to be committed so the RAG memory and run log survive between runs.
+data/chroma/
+data/history.db
